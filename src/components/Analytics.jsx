@@ -7,8 +7,8 @@ import { todayLocal, monthKey, addMonths, fmtMonth, daysInMonth } from '../lib/d
 import { formatINR, formatCompact } from '../lib/money.js';
 
 const COLORS = [
-  '#818cf8', '#34d399', '#f87171', '#fbbf24', '#38bdf8', '#f472b6',
-  '#a78bfa', '#4ade80', '#fb923c', '#22d3ee', '#e879f9', '#facc15', '#94a3b8',
+  '#8b7cf6', '#5cbf9b', '#e08e8e', '#e0b56e', '#6fb3d9', '#d98cc0',
+  '#a89bf0', '#84cf95', '#e0a06e', '#6ec4cc', '#c48ede', '#cfc06e', '#a3a0b8',
 ];
 
 export default function Analytics({ rows }) {
@@ -63,9 +63,14 @@ export default function Analytics({ rows }) {
   }
 
   const tooltipStyle = {
-    background: '#232733', border: 'none', borderRadius: 10,
-    color: '#e8eaf0', fontSize: 12,
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 12,
+    color: 'var(--text)',
+    fontSize: 12,
+    boxShadow: 'var(--shadow-sm)',
   };
+  const tick = { fill: 'var(--text-dim)', fontSize: 10 };
 
   return (
     <>
@@ -129,7 +134,7 @@ export default function Analytics({ rows }) {
           <BarChart data={daily} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
             <XAxis
               dataKey="day"
-              tick={{ fill: '#8a90a0', fontSize: 10 }}
+              tick={tick}
               interval={4}
               axisLine={false}
               tickLine={false}
@@ -139,9 +144,9 @@ export default function Analytics({ rows }) {
               contentStyle={tooltipStyle}
               formatter={(v) => formatINR(v)}
               labelFormatter={(d) => `Day ${d}`}
-              cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+              cursor={{ fill: 'var(--accent-soft)' }}
             />
-            <Bar dataKey="spend" fill="#f87171" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="spend" fill="var(--red)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -163,24 +168,24 @@ export default function Analytics({ rows }) {
         {showTrend && (
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={trend} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="#232733" vertical={false} />
+              <CartesianGrid stroke="var(--border)" vertical={false} />
               <XAxis
                 dataKey="label"
-                tick={{ fill: '#8a90a0', fontSize: 10 }}
+                tick={tick}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: '#8a90a0', fontSize: 10 }}
+                tick={tick}
                 tickFormatter={formatCompact}
                 axisLine={false}
                 tickLine={false}
                 width={44}
               />
               <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatINR(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="income" stroke="#34d399" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="expense" stroke="#f87171" strokeWidth={2} dot={false} />
+              <Legend wrapperStyle={{ fontSize: 12, color: 'var(--text-dim)' }} />
+              <Line type="monotone" dataKey="income" stroke="var(--green)" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="expense" stroke="var(--red)" strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         )}

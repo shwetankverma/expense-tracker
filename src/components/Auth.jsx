@@ -1,85 +1,94 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 
-// Email OTP code only. Magic links break installed iOS PWAs (pitfall P2).
 export default function Auth() {
-  const [step, setStep] = useState('email'); // 'email' | 'code'
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  async function sendCode(e) {
+  async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const { error: err } = await supabase.auth.signInWithOtp({ email: email.trim() });
+    setInfo('');
+
+    if (mode === 'login') {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (err) setError(err.message);
+      // on success onAuthStateChange in App.jsx takes over
+    } else {
+      const { data, error: err } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (err) {
+        setError(err.message);
+      } else if (data.session === null) {
+        // email confirmation is turned on in Supabase
+        setInfo('Account created. Check your email to confirm, then log in.');
+        setMode('login');
+      }
+      // if confirmation is off, a session arrives and the app loads
+    }
     setBusy(false);
-    if (err) { setError(err.message); return; }
-    setStep('code');
   }
 
-  async function verify(e) {
-    e.preventDefault();
-    setBusy(true);
+  const switchMode = (m) => {
+    setMode(m);
     setError('');
-    const { error: err } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: 'email',
-    });
-    setBusy(false);
-    if (err) setError(err.message);
-    // on success onAuthStateChange in App.jsx takes over
-  }
+    setInfo('');
+  };
 
   return (
     <div className="auth">
-      <h1>Expense Tracker</h1>
-      {step === 'email' ? (
-        <form onSubmit={sendCode}>
-          <p>Sign in with your email. You will get a 6-digit code.</p>
+      <div className="auth-card">
+        <div className="auth-logo">₹</div>
+        <h1>Expense Tracker</h1>
+        <p>Your money, quietly organised.</p>
+
+        <div className="seg auth-seg">
+          <button className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')} type="button">
+            Log in
+          </button>
+          <button className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')} type="button">
+            Register
+          </button>
+        </div>
+
+        <form onSubmit={submit}>
           <input
             type="email"
             inputMode="email"
             autoComplete="email"
-            placeholder="you@example.com"
+            placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             autoFocus
           />
-          <button className="btn" type="submit" disabled={busy || !email.trim()}>
-            {busy ? 'Sending…' : 'Send code'}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={verify}>
-          <p>
-            Code sent to <strong>{email}</strong>
-          </p>
           <input
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="6-digit code"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            type="password"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            placeholder={mode === 'login' ? 'Password' : 'Password (min 6 characters)'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={6}
             required
-            autoFocus
           />
-          <button className="btn" type="submit" disabled={busy || code.length !== 6}>
-            {busy ? 'Verifying…' : 'Verify'}
+          <button className="btn" type="submit" disabled={busy || !email.trim() || password.length < 6}>
+            {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
           </button>
-          <p className="ok">
-            <button type="button" onClick={() => { setStep('email'); setCode(''); }}>
-              Use a different email
-            </button>
-          </p>
         </form>
-      )}
-      {error && <div className="error">{error}</div>}
+
+        {error && <div className="error">{error}</div>}
+        {info && <div className="ok">{info}</div>}
+      </div>
     </div>
   );
 }

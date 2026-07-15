@@ -15,10 +15,10 @@ npm run dev
 
 1. Create a project at supabase.com → copy the Project URL and anon key into `src/lib/supabase.js` (replace the two placeholders)
 2. SQL editor → run `supabase/schema.sql`
-3. Authentication → Providers → Email: enabled, **Confirm email: off**
+3. Authentication → Providers → Email: enabled. Turn **Confirm email: off** for instant registration (or leave on if you want email verification)
 4. Authentication → URL Configuration → Site URL: `https://<your-username>.github.io/expense-tracker/`
-5. After deploying, sign in once with your email (6-digit OTP code)
-6. Then Authentication → Settings → **turn off "Allow new users to sign up"**
+5. After deploying, register once with your email and a password
+6. Then Authentication → Settings → **turn off "Allow new users to sign up"** so nobody else can register
 
 ### GitHub
 

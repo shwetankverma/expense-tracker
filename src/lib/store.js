@@ -83,6 +83,16 @@ export async function refresh() {
   notify();
 }
 
+// Called on logout so the next account never sees or pushes this user's rows.
+export function clearLocal() {
+  cache = [];
+  queue = [];
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(QUEUE_KEY);
+  localStorage.removeItem(TS_KEY);
+  notify();
+}
+
 export async function flush() {
   if (flushing || !navigator.onLine || queue.length === 0) return;
   flushing = true;

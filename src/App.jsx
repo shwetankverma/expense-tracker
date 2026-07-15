@@ -9,6 +9,19 @@ import Analytics from './components/Analytics.jsx';
 import AiSummary from './components/AiSummary.jsx';
 import TransactionForm from './components/TransactionForm.jsx';
 
+const THEME_COLORS = { light: '#f7f4ef', dark: '#15131c' };
+
+function useTheme() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('et_theme') || 'light');
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('et_theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', THEME_COLORS[theme]);
+  }, [theme]);
+  return [theme, setTheme];
+}
+
 function useTransactions(ready) {
   const [rows, setRows] = useState(store.getAll());
   useEffect(() => {
@@ -32,6 +45,7 @@ export default function App() {
   const [view, setView] = useState('day'); // 'day' | 'calendar' | 'analytics' | 'ai'
   const [selectedDate, setSelectedDate] = useState(todayLocal());
   const [showForm, setShowForm] = useState(null); // null | 'income' | 'expense' | tx object
+  const [theme, setTheme] = useTheme();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -40,13 +54,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session && !ready) {
+    if (!session) return;
+    if (!ready) {
       store.init();
       setReady(true);
+    } else {
+      store.refresh(); // fresh login after a logout: repopulate
     }
-  }, [session, ready]);
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useTransactions(ready);
+
+  async function logout() {
+    if (!window.confirm('Log out?')) return;
+    await supabase.auth.signOut();
+    store.clearLocal();
+    setView('day');
+  }
 
   if (session === undefined) return null; // brief blank while session loads
   if (!session) return <Auth />;
@@ -61,10 +85,28 @@ export default function App() {
 
   return (
     <>
-      <div
-        className={`sync-dot ${dotClass}`}
-        title={!store.isOnline() ? 'Offline' : pending ? `${pending} pending` : 'Synced'}
-      />
+      <header className="topbar">
+        <span className="brand">
+          <span className="mark">₹</span>Expenses
+        </span>
+        <div className="top-actions">
+          <span
+            className={`sync-dot ${dotClass}`}
+            title={!store.isOnline() ? 'Offline' : pending ? `${pending} pending` : 'Synced'}
+          />
+          <button
+            className="icon-btn"
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            aria-label="Toggle theme"
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+          <button className="icon-btn" onClick={logout} aria-label="Log out">
+            ⏻
+          </button>
+        </div>
+      </header>
+
       <div className="app">
         {view === 'day' && (
           <DayDetail
