@@ -568,3 +568,21 @@ input, textarea, select { font: inherit; }
 .auth .btn { width: 100%; margin-top: 4px; }
 .auth .error { color: var(--red); font-size: 13px; margin-top: 14px; }
 .auth .ok { color: var(--green); font-size: 13px; margin-top: 14px; }
+
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text-dim); font-size: 12px;
+  margin: 18px 0 14px;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.btn.google {
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
