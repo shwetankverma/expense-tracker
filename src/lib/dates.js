@@ -43,10 +43,11 @@ export function addMonths(year, month, n) {
   return { y: d.getFullYear(), m: d.getMonth() + 1 };
 }
 
-// Array of 4-6 week arrays, each 7 cells of 'YYYY-MM-DD' or null. Weeks start Monday.
-export function monthGrid(year, month) {
+// Array of 4-6 week arrays, each 7 cells of 'YYYY-MM-DD' or null.
+// weekStart: 'mon' (default) or 'sun'.
+export function monthGrid(year, month, weekStart = 'mon') {
   const first = new Date(year, month - 1, 1);
-  const offset = (first.getDay() + 6) % 7;
+  const offset = weekStart === 'sun' ? first.getDay() : (first.getDay() + 6) % 7;
   const total = daysInMonth(year, month);
   const cells = [];
   for (let i = 0; i < offset; i++) cells.push(null);

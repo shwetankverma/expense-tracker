@@ -5,13 +5,14 @@ import {
 } from 'recharts';
 import { todayLocal, monthKey, addMonths, fmtMonth, daysInMonth } from '../lib/dates.js';
 import { formatINR, formatCompact } from '../lib/money.js';
+import { IconSpark } from './Icons.jsx';
 
 const COLORS = [
   '#8b7cf6', '#5cbf9b', '#e08e8e', '#e0b56e', '#6fb3d9', '#d98cc0',
   '#a89bf0', '#84cf95', '#e0a06e', '#6ec4cc', '#c48ede', '#cfc06e', '#a3a0b8',
 ];
 
-export default function Analytics({ rows }) {
+export default function Analytics({ rows, onOpenAi }) {
   const today = todayLocal();
   const [ym, setYm] = useState(() => ({
     y: Number(today.slice(0, 4)),
@@ -83,6 +84,15 @@ export default function Analytics({ rows }) {
           ›
         </button>
       </div>
+
+      <button className="ai-cta" onClick={onOpenAi}>
+        <span className="spark"><IconSpark /></span>
+        <span className="mid">
+          <b>AI money report</b>
+          <small>Generate a report to paste into Claude or ChatGPT</small>
+        </span>
+        <span className="chev">›</span>
+      </button>
 
       <div className="card">
         <div className="section-title">Expenses by category</div>

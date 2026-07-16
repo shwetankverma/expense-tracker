@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { monthGrid, todayLocal, monthKey, addMonths, fmtMonth } from '../lib/dates.js';
 import { formatINR, formatCompact } from '../lib/money.js';
 
-const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const DOW = { mon: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], sun: ['S', 'M', 'T', 'W', 'T', 'F', 'S'] };
 
-export default function Calendar({ rows, selectedDate, onSelect }) {
+export default function Calendar({ rows, selectedDate, onSelect, weekStart = 'mon' }) {
   const [ym, setYm] = useState(() => ({
     y: Number(selectedDate.slice(0, 4)),
     m: Number(selectedDate.slice(5, 7)),
   }));
 
   const today = todayLocal();
-  const grid = monthGrid(ym.y, ym.m);
+  const grid = monthGrid(ym.y, ym.m, weekStart);
   const mk = `${ym.y}-${String(ym.m).padStart(2, '0')}`;
 
   // net per day + month totals in one pass
@@ -47,7 +47,7 @@ export default function Calendar({ rows, selectedDate, onSelect }) {
       </header>
 
       <div className="cal-dow">
-        {DOW.map((d, i) => (
+        {DOW[weekStart].map((d, i) => (
           <span key={i}>{d}</span>
         ))}
       </div>

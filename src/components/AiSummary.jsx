@@ -21,7 +21,7 @@ function periodBounds(id) {
   return [firstOfMonth(s.y, s.m), lastOfMonth(y, m)];
 }
 
-export default function AiSummary({ rows }) {
+export default function AiSummary({ rows, onBack }) {
   const [period, setPeriod] = useState('this');
   const [copied, setCopied] = useState(false);
 
@@ -46,6 +46,14 @@ export default function AiSummary({ rows }) {
 
   return (
     <>
+      <div className="sub-header">
+        <button className="nav-btn" onClick={onBack} aria-label="Back">
+          ‹
+        </button>
+        <h1>AI Report</h1>
+        <span style={{ width: 44 }} />
+      </div>
+
       <div className="seg">
         {PERIODS.map((p) => (
           <button

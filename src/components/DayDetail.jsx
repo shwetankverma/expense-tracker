@@ -1,6 +1,7 @@
 import { todayLocal, addDays, fmtHeader } from '../lib/dates.js';
 import { formatINR } from '../lib/money.js';
 import { emojiFor } from '../lib/categories.js';
+import { useCountUp } from '../lib/anim.js';
 
 export default function DayDetail({ rows, date, setDate, onEdit }) {
   const dayRows = rows
@@ -11,6 +12,7 @@ export default function DayDetail({ rows, date, setDate, onEdit }) {
   const expense = dayRows.filter((r) => r.type === 'expense').reduce((s, r) => s + Number(r.amount), 0);
   const net = income - expense;
   const isToday = date === todayLocal();
+  const spent = useCountUp(expense);
 
   return (
     <>
@@ -31,32 +33,31 @@ export default function DayDetail({ rows, date, setDate, onEdit }) {
         </button>
       </header>
 
-      <div className="summary-chips">
-        <div className="chip">
-          <div className="label">Income</div>
-          <div className="value green">{formatINR(income)}</div>
+      <section className="hero">
+        <div className="eyebrow">{isToday ? 'Spent today' : 'Spent this day'}</div>
+        <div className="big-num">{formatINR(Math.round(spent))}</div>
+        <div className="hero-sub">
+          <span className="pos">{formatINR(income)} in</span>
+          <span className="sep">·</span>
+          <span className={net >= 0 ? 'pos' : 'neg'}>
+            net {net < 0 ? '-' : ''}{formatINR(Math.abs(net))}
+          </span>
         </div>
-        <div className="chip">
-          <div className="label">Expense</div>
-          <div className="value red">{formatINR(expense)}</div>
-        </div>
-        <div className="chip">
-          <div className="label">Net</div>
-          <div className={`value ${net >= 0 ? 'green' : 'red'}`}>
-            {net < 0 ? '-' : ''}{formatINR(Math.abs(net))}
-          </div>
-        </div>
-      </div>
+      </section>
 
       {dayRows.length === 0 ? (
         <div className="empty">
-          Nothing logged on this day.
-          <br />
-          Tap + to add an entry.
+          <span className="big">A quiet day</span>
+          Nothing logged here yet. Tap + to add an entry.
         </div>
       ) : (
-        dayRows.map((tx) => (
-          <button key={tx.id} className="tx-row" onClick={() => onEdit(tx)}>
+        dayRows.map((tx, i) => (
+          <button
+            key={tx.id}
+            className="tx-row"
+            style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+            onClick={() => onEdit(tx)}
+          >
             <span className="emoji">{emojiFor(tx.category)}</span>
             <span className="mid">
               <div className="cat">{tx.category}</div>
