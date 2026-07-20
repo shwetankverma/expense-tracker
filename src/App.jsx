@@ -2,9 +2,11 @@ import { useState, useEffect, useReducer } from 'react';
 import { supabase } from './lib/supabase.js';
 import * as store from './lib/store.js';
 import * as cardstore from './lib/cardstore.js';
+import * as categoryStore from './lib/categoryStore.js';
 import { todayLocal } from './lib/dates.js';
 import { loadPrefs, savePrefs } from './lib/prefs.js';
 import Auth from './components/Auth.jsx';
+import ResetPassword from './components/ResetPassword.jsx';
 import DayDetail from './components/DayDetail.jsx';
 import Calendar from './components/Calendar.jsx';
 import Analytics from './components/Analytics.jsx';
@@ -13,6 +15,7 @@ import TransactionForm from './components/TransactionForm.jsx';
 import Cards from './components/Cards.jsx';
 import CardExpenseForm from './components/CardExpenseForm.jsx';
 import Profile from './components/Profile.jsx';
+import CategoryManager from './components/CategoryManager.jsx';
 import { IconHome, IconCalendar, IconChart, IconCard, IconUser } from './components/Icons.jsx';
 
 const THEME_COLORS = { light: '#faf8f4', dark: '#121014' };
@@ -38,6 +41,16 @@ function useTransactions(ready) {
   return rows;
 }
 
+function useCategories(ready) {
+  const [cats, setCats] = useState(categoryStore.getAll());
+  useEffect(() => {
+    if (!ready) return undefined;
+    setCats(categoryStore.getAll());
+    return categoryStore.subscribe(setCats);
+  }, [ready]);
+  return cats;
+}
+
 const TABS = [
   { id: 'day', Icon: IconHome, label: 'Home' },
   { id: 'calendar', Icon: IconCalendar, label: 'Calendar' },
@@ -53,6 +66,8 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(todayLocal());
   const [showForm, setShowForm] = useState(null); // null | 'income' | 'expense' | tx object
   const [showCardForm, setShowCardForm] = useState(null); // null | 'new' | card-expense object
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [theme, setTheme] = useTheme();
   const [prefs, setPrefsState] = useState(loadPrefs);
   const [, bump] = useReducer((x) => x + 1, 0); // re-render on cardstore changes (sync dot)
@@ -71,7 +86,13 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      // Clicking the emailed "reset password" link lands back here with a
+      // valid recovery session already established; show the set-new-
+      // password screen instead of dropping the user straight into the app.
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      setSession(s);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -80,14 +101,17 @@ export default function App() {
     if (!ready) {
       store.init();
       cardstore.init();
+      categoryStore.init();
       setReady(true);
     } else {
       store.refresh(); // fresh login after a logout: repopulate
       cardstore.refresh();
+      categoryStore.refresh();
     }
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useTransactions(ready);
+  const categories = useCategories(ready);
 
   useEffect(() => {
     if (!ready) return undefined;
@@ -95,9 +119,12 @@ export default function App() {
   }, [ready]);
 
   if (session === undefined) return null; // brief blank while session loads
+  if (passwordRecovery) {
+    return <ResetPassword onDone={() => setPasswordRecovery(false)} />;
+  }
   if (!session) return <Auth />;
 
-  const pending = store.pendingCount() + cardstore.pendingCount();
+  const pending = store.pendingCount() + cardstore.pendingCount() + categoryStore.pendingCount();
   const dotClass = !store.isOnline() ? 'grey' : pending > 0 ? 'amber' : 'green';
 
   const openDay = (iso) => {
@@ -111,7 +138,7 @@ export default function App() {
     <>
       <header className="topbar">
         <span className="brand">
-          <span className="mark">₹</span>Expenses
+          <span className="mark">₹</span>Kharcha
         </span>
         <div className="top-actions">
           <span
@@ -126,6 +153,7 @@ export default function App() {
           {view === 'day' && (
             <DayDetail
               rows={rows}
+              categories={categories}
               date={selectedDate}
               setDate={setSelectedDate}
               onEdit={(tx) => setShowForm(tx)}
@@ -139,18 +167,22 @@ export default function App() {
               weekStart={prefs.weekStart}
             />
           )}
-          {view === 'analytics' && <Analytics rows={rows} onOpenAi={() => setView('ai')} />}
+          {view === 'analytics' && (
+            <Analytics rows={rows} categories={categories} onOpenAi={() => setView('ai')} />
+          )}
           {view === 'ai' && <AiSummary rows={rows} onBack={() => setView('analytics')} />}
           {view === 'cards' && <Cards onEditExpense={(t) => setShowCardForm(t)} />}
           {view === 'profile' && (
             <Profile
               rows={rows}
+              categories={categories}
               session={session}
               theme={theme}
               setTheme={setTheme}
               prefs={prefs}
               setPrefs={setPrefs}
               onEdit={(tx) => setShowForm(tx)}
+              onManageCategories={() => setShowCategoryManager(true)}
             />
           )}
         </div>
@@ -183,12 +215,18 @@ export default function App() {
         <TransactionForm
           initial={showForm}
           defaultDate={selectedDate}
+          rows={rows}
+          categories={categories}
           onClose={() => setShowForm(null)}
         />
       )}
 
       {showCardForm && (
         <CardExpenseForm initial={showCardForm} onClose={() => setShowCardForm(null)} />
+      )}
+
+      {showCategoryManager && (
+        <CategoryManager categories={categories} onClose={() => setShowCategoryManager(false)} />
       )}
     </>
   );

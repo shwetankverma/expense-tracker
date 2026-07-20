@@ -9,7 +9,7 @@ const FILTERS = [
   { id: 'income', label: 'Income' },
 ];
 
-export default function AllEntries({ rows, onBack, onEdit }) {
+export default function AllEntries({ rows, categories, onBack, onEdit }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -20,7 +20,8 @@ export default function AllEntries({ rows, onBack, onEdit }) {
       .filter(
         (r) =>
           !needle ||
-          r.category.toLowerCase().includes(needle) ||
+          (r.merchant || '').toLowerCase().includes(needle) ||
+          (r.category || '').toLowerCase().includes(needle) ||
           (r.note || '').toLowerCase().includes(needle) ||
           String(r.amount).includes(needle)
       )
@@ -81,22 +82,31 @@ export default function AllEntries({ rows, onBack, onEdit }) {
         groups.map((g) => (
           <div key={g.key}>
             <div className="list-date">{g.label}</div>
-            {g.items.map((tx) => (
-              <button key={tx.id} className="tx-row" onClick={() => onEdit(tx)}>
-                <span className="emoji">{emojiFor(tx.category)}</span>
-                <span className="mid">
-                  <div className="cat">{tx.category}</div>
-                  <div className="note">
-                    {fmtShort(tx.tx_date)}
-                    {tx.note ? ` · ${tx.note}` : ''}
-                  </div>
-                </span>
-                <span className={`amt ${tx.type}`}>
-                  {tx.type === 'expense' ? '-' : ''}
-                  {formatINR(Number(tx.amount))}
-                </span>
-              </button>
-            ))}
+            {g.items.map((tx) => {
+              const primary = tx.merchant || tx.category || 'Uncategorized';
+              const avatarChar = (tx.merchant || tx.category || '?').trim().charAt(0).toUpperCase();
+              return (
+                <button key={tx.id} className="tx-row" onClick={() => onEdit(tx)}>
+                  <span className="avatar">{avatarChar}</span>
+                  <span className="mid">
+                    <div className="cat">{primary}</div>
+                    {tx.category && (
+                      <span className="cat-tag">
+                        {emojiFor(tx.category, categories)} {tx.category}
+                      </span>
+                    )}
+                    <div className="note">
+                      {fmtShort(tx.tx_date)}
+                      {tx.note ? ` · ${tx.note}` : ''}
+                    </div>
+                  </span>
+                  <span className={`amt ${tx.type}`}>
+                    {tx.type === 'expense' ? '-' : ''}
+                    {formatINR(Number(tx.amount))}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         ))
       )}

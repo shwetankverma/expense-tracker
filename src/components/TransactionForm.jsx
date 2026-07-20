@@ -1,27 +1,42 @@
-import { useState } from 'react';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories.js';
+import { useMemo, useState } from 'react';
+import { normalizeMerchant } from '../lib/merchant.js';
 import { round2 } from '../lib/money.js';
 import * as store from '../lib/store.js';
 
-export default function TransactionForm({ initial, defaultDate, onClose }) {
+export default function TransactionForm({ initial, defaultDate, rows, categories, onClose }) {
   const editing = typeof initial === 'object' && initial !== null;
 
   const [type, setType] = useState(editing ? initial.type : initial === 'income' ? 'income' : 'expense');
   const [amount, setAmount] = useState(editing ? String(initial.amount) : '');
-  const [category, setCategory] = useState(editing ? initial.category : '');
-  const [date, setDate] = useState(editing ? initial.tx_date : defaultDate);
+  const [merchant, setMerchant] = useState(editing ? initial.merchant || '' : '');
   const [note, setNote] = useState(editing ? initial.note || '' : '');
+  const [date, setDate] = useState(editing ? initial.tx_date : defaultDate);
+  const [category, setCategory] = useState(editing ? initial.category || '' : '');
 
-  const cats = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const cats = (categories || []).filter((c) => c.type === type);
   const amt = parseFloat(amount);
-  const valid = !Number.isNaN(amt) && amt > 0 && category !== '' && date;
+  const valid = !Number.isNaN(amt) && amt > 0 && merchant.trim() !== '' && date;
+
+  // Previously-used merchants of this type, for the "Where" autocomplete
+  // (pitfall P11 — helps the same place collapse to one string).
+  const merchantSuggestions = useMemo(() => {
+    const seen = new Set();
+    (rows || []).forEach((r) => {
+      if (r.type === type && r.merchant) seen.add(r.merchant);
+    });
+    return [...seen].sort((a, b) => a.localeCompare(b));
+  }, [rows, type]);
 
   function switchType(t) {
     if (t === type) return;
     setType(t);
     // keep the category only if it exists for the new type
-    const nextCats = t === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
-    if (!nextCats.some((c) => c.key === category)) setCategory('');
+    const nextCats = (categories || []).filter((c) => c.type === t);
+    if (!nextCats.some((c) => c.label === category)) setCategory('');
+  }
+
+  function toggleCategory(label) {
+    setCategory((c) => (c === label ? '' : label));
   }
 
   function save() {
@@ -31,6 +46,7 @@ export default function TransactionForm({ initial, defaultDate, onClose }) {
       id: editing ? initial.id : crypto.randomUUID(),
       tx_date: date,
       type,
+      merchant: normalizeMerchant(merchant),
       category,
       amount: round2(amt),
       note: note.trim(),
@@ -85,16 +101,30 @@ export default function TransactionForm({ initial, defaultDate, onClose }) {
           />
         </div>
 
-        <div className="cat-grid">
-          {cats.map((c) => (
-            <button
-              key={c.key}
-              className={`cat-chip${category === c.key ? ' selected' : ''}`}
-              onClick={() => setCategory(c.key)}
-            >
-              <span>{c.emoji}</span> {c.key}
-            </button>
-          ))}
+        <div className="field">
+          <label>Where</label>
+          <input
+            type="text"
+            placeholder="e.g. Amazon, Swiggy, Landlord"
+            value={merchant}
+            list="merchant-suggestions"
+            onChange={(e) => setMerchant(e.target.value)}
+          />
+          <datalist id="merchant-suggestions">
+            {merchantSuggestions.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </div>
+
+        <div className="field">
+          <label>What (optional)</label>
+          <input
+            type="text"
+            placeholder="e.g. running shoes"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </div>
 
         <div className="field">
@@ -103,13 +133,18 @@ export default function TransactionForm({ initial, defaultDate, onClose }) {
         </div>
 
         <div className="field">
-          <label>Note (optional)</label>
-          <input
-            type="text"
-            placeholder="e.g. July rent"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
+          <label>Category (optional)</label>
+          <div className="cat-grid">
+            {cats.map((c) => (
+              <button
+                key={c.id}
+                className={`cat-chip${category === c.label ? ' selected' : ''}`}
+                onClick={() => toggleCategory(c.label)}
+              >
+                <span>{c.emoji}</span> {c.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <button className="btn" style={{ width: '100%' }} disabled={!valid} onClick={save}>

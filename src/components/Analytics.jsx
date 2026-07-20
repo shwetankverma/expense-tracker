@@ -3,8 +3,9 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
   BarChart, Bar, XAxis, YAxis, LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
-import { todayLocal, monthKey, addMonths, fmtMonth, daysInMonth } from '../lib/dates.js';
+import { todayLocal, monthKey, addMonths, fmtMonth, fmtShort, daysInMonth } from '../lib/dates.js';
 import { formatINR, formatCompact } from '../lib/money.js';
+import { UNCATEGORIZED, UNKNOWN_MERCHANT } from '../lib/merchant.js';
 import { IconSpark } from './Icons.jsx';
 
 const COLORS = [
@@ -12,36 +13,69 @@ const COLORS = [
   '#a89bf0', '#84cf95', '#e0a06e', '#6ec4cc', '#c48ede', '#cfc06e', '#a3a0b8',
 ];
 
-export default function Analytics({ rows, onOpenAi }) {
+const normCat = (c) => (c && c.trim() ? c : UNCATEGORIZED);
+const normWhere = (m) => (m && m.trim() ? m : UNKNOWN_MERCHANT);
+
+export default function Analytics({ rows, categories, onOpenAi }) {
   const today = todayLocal();
   const [ym, setYm] = useState(() => ({
     y: Number(today.slice(0, 4)),
     m: Number(today.slice(5, 7)),
   }));
   const [showTrend, setShowTrend] = useState(true);
+  const [groupBy, setGroupBy] = useState('category'); // 'category' | 'where'
+  const [drill, setDrill] = useState([]); // breadcrumb path within the current groupBy mode
 
   const mk = `${ym.y}-${String(ym.m).padStart(2, '0')}`;
   const monthRows = rows.filter((r) => monthKey(r.tx_date) === mk);
   const expenses = monthRows.filter((r) => r.type === 'expense');
-  const totalSpent = expenses.reduce((s, r) => s + Number(r.amount), 0);
 
-  // --- donut: split by category, <3% collapses into "Other small" ---
-  const catMap = {};
-  expenses.forEach((r) => {
-    catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount);
-  });
-  const allCats = Object.entries(catMap)
+  function switchGroupBy(mode) {
+    if (mode === groupBy) return;
+    setGroupBy(mode);
+    setDrill([]);
+  }
+
+  // --- scope the expense set down to whatever level of the drill we're at ---
+  let scoped = expenses;
+  if (groupBy === 'category') {
+    if (drill[0]) scoped = scoped.filter((r) => normCat(r.category) === drill[0]);
+    if (drill[1]) scoped = scoped.filter((r) => normWhere(r.merchant) === drill[1]);
+  } else {
+    if (drill[0]) scoped = scoped.filter((r) => normWhere(r.merchant) === drill[0]);
+  }
+
+  // category mode: Category -> Where -> What (2 drill levels before transactions)
+  // where mode: Where -> What (1 drill level before transactions)
+  const isDeepest =
+    (groupBy === 'category' && drill.length >= 2) || (groupBy === 'where' && drill.length >= 1);
+
+  const keyFn = groupBy === 'category'
+    ? (drill.length === 0 ? (r) => normCat(r.category) : (r) => normWhere(r.merchant))
+    : (r) => normWhere(r.merchant);
+
+  const scopedTotal = scoped.reduce((s, r) => s + Number(r.amount), 0);
+
+  // --- donut/list at the current (non-deepest) level ---
+  const grouped = {};
+  if (!isDeepest) {
+    scoped.forEach((r) => {
+      const k = keyFn(r);
+      grouped[k] = (grouped[k] || 0) + Number(r.amount);
+    });
+  }
+  const allEntries = Object.entries(grouped)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
   const big = [];
   let small = 0;
-  allCats.forEach((c) => {
-    if (totalSpent > 0 && c.value / totalSpent < 0.03) small += c.value;
+  allEntries.forEach((c) => {
+    if (scopedTotal > 0 && c.value / scopedTotal < 0.03) small += c.value;
     else big.push(c);
   });
   const donutData = small > 0 ? [...big, { name: 'Other small', value: small }] : big;
 
-  // --- daily bars ---
+  // --- daily bars (whole month, unaffected by the drill) ---
   const nDays = daysInMonth(ym.y, ym.m);
   const daily = Array.from({ length: nDays }, (_, i) => ({ day: i + 1, spend: 0 }));
   expenses.forEach((r) => {
@@ -73,6 +107,18 @@ export default function Analytics({ rows, onOpenAi }) {
   };
   const tick = { fill: 'var(--text-dim)', fontSize: 10 };
 
+  const canDrillDeeper = !isDeepest; // clicking a (non-"Other small") row goes one level deeper
+  function drillInto(name) {
+    if (name === 'Other small' || !canDrillDeeper) return;
+    setDrill([...drill, name]);
+  }
+
+  const deepestList = isDeepest
+    ? [...scoped].sort(
+        (a, b) => b.tx_date.localeCompare(a.tx_date) || (b.created_at || '').localeCompare(a.created_at || '')
+      )
+    : [];
+
   return (
     <>
       <div className="scope-bar">
@@ -95,9 +141,55 @@ export default function Analytics({ rows, onOpenAi }) {
       </button>
 
       <div className="card">
-        <div className="section-title">Expenses by category</div>
-        {donutData.length === 0 ? (
-          <div className="empty">No expenses this month</div>
+        <div className="section-title">
+          {drill.length === 0 ? (
+            groupBy === 'category' ? 'Expenses by category' : 'Expenses by where'
+          ) : (
+            <span className="breadcrumb">
+              <button onClick={() => setDrill([])}>Expenses</button>
+              {drill.map((seg, i) => (
+                <span key={i}>
+                  <span className="crumb-sep">›</span>
+                  <button
+                    className={i === drill.length - 1 ? 'current' : ''}
+                    disabled={i === drill.length - 1}
+                    onClick={() => setDrill(drill.slice(0, i + 1))}
+                  >
+                    {seg}
+                  </button>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+
+        {drill.length === 0 && (
+          <div className="seg mini" style={{ marginBottom: 14, width: 'fit-content' }}>
+            <button className={groupBy === 'category' ? 'active' : ''} onClick={() => switchGroupBy('category')}>
+              Category
+            </button>
+            <button className={groupBy === 'where' ? 'active' : ''} onClick={() => switchGroupBy('where')}>
+              Where
+            </button>
+          </div>
+        )}
+
+        {isDeepest ? (
+          deepestList.length === 0 ? (
+            <div className="empty">Nothing here</div>
+          ) : (
+            <div className="cat-list">
+              {deepestList.map((r) => (
+                <div className="cat-line" key={r.id}>
+                  <span className="name">{r.note || 'No note'}</span>
+                  <span className="when">{fmtShort(r.tx_date)}</span>
+                  <span className="val">{formatINR(Number(r.amount))}</span>
+                </div>
+              ))}
+            </div>
+          )
+        ) : donutData.length === 0 ? (
+          <div className="empty">No expenses here</div>
         ) : (
           <>
             <div className="donut-wrap">
@@ -120,19 +212,24 @@ export default function Analytics({ rows, onOpenAi }) {
                 </PieChart>
               </ResponsiveContainer>
               <div className="donut-center">
-                <div className="big">{formatINR(totalSpent)}</div>
-                <div className="small">total spent</div>
+                <div className="big">{formatINR(scopedTotal)}</div>
+                <div className="small">{drill.length === 0 ? 'total spent' : 'in this view'}</div>
               </div>
             </div>
             <div className="cat-list">
-              {allCats.map((c, i) => (
-                <div className="cat-line" key={c.name}>
-                  <span className="swatch" style={{ background: COLORS[i % COLORS.length] }} />
-                  <span className="name">{c.name}</span>
-                  <span className="val">{formatINR(c.value)}</span>
-                  <span className="pct">{((c.value / totalSpent) * 100).toFixed(1)}%</span>
-                </div>
-              ))}
+              {allEntries.map((c, i) => {
+                const clickable = canDrillDeeper && c.name !== 'Other small';
+                const Tag = clickable ? 'button' : 'div';
+                return (
+                  <Tag className="cat-line" key={c.name} onClick={clickable ? () => drillInto(c.name) : undefined}>
+                    <span className="swatch" style={{ background: COLORS[i % COLORS.length] }} />
+                    <span className="name">{c.name}</span>
+                    <span className="val">{formatINR(c.value)}</span>
+                    <span className="pct">{((c.value / scopedTotal) * 100).toFixed(1)}%</span>
+                    {clickable && <span className="chev">›</span>}
+                  </Tag>
+                );
+              })}
             </div>
           </>
         )}

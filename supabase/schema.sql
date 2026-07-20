@@ -63,3 +63,33 @@ create policy "own card expenses only" on public.card_expenses
 
 create index idx_cardexp_user_date on public.card_expenses (user_id, tx_date);
 create index idx_cardexp_card on public.card_expenses (card_id);
+
+-- ============================================================
+-- v3: user-editable categories, merchant field on transactions
+-- If you already ran the blocks above, run ONLY from here down.
+-- ============================================================
+
+create table public.categories (
+  id uuid primary key,                          -- client-generated (offline-safe upserts)
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  type text not null check (type in ('income','expense')),
+  label text not null,
+  emoji text not null default '🔧',
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.categories enable row level security;
+
+create policy "own categories only" on public.categories
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create index idx_categories_user_type on public.categories (user_id, type, sort_order);
+
+-- Where (merchant) becomes the primary identifier on an entry; category is
+-- now optional. Existing rows keep their category untouched; merchant
+-- defaults to '' for them.
+alter table public.transactions add column merchant text not null default '';
+alter table public.transactions alter column category drop not null;

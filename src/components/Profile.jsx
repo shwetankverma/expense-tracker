@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import * as store from '../lib/store.js';
 import * as cardstore from '../lib/cardstore.js';
+import * as categoryStore from '../lib/categoryStore.js';
 import { todayLocal, addDays, monthKey } from '../lib/dates.js';
 import { formatINR, formatCompact } from '../lib/money.js';
 import { ACCENTS } from '../lib/prefs.js';
@@ -24,18 +25,22 @@ function download(filename, text, type) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-export default function Profile({ rows, session, theme, setTheme, prefs, setPrefs, onEdit }) {
+export default function Profile({ rows, categories, session, theme, setTheme, prefs, setPrefs, onEdit, onManageCategories }) {
   const [showAll, setShowAll] = useState(false);
   const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(prefs.name);
+  const [nameDraft, setNameDraft] = useState(session?.user?.user_metadata?.full_name || prefs.name);
   const [syncing, setSyncing] = useState(false);
 
   if (showAll) {
-    return <AllEntries rows={rows} onBack={() => setShowAll(false)} onEdit={onEdit} />;
+    return (
+      <AllEntries rows={rows} categories={categories} onBack={() => setShowAll(false)} onEdit={onEdit} />
+    );
   }
 
   const email = session?.user?.email || '';
-  const name = prefs.name || email.split('@')[0] || 'You';
+  // Supabase auth metadata is the durable, cross-device source of truth.
+  // prefs.name is only a local fallback for the instant/offline render.
+  const name = session?.user?.user_metadata?.full_name || prefs.name || email.split('@')[0] || 'You';
   const initial = name.trim().charAt(0).toUpperCase() || '₹';
   const memberSince = session?.user?.created_at
     ? new Date(session.user.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
@@ -64,13 +69,17 @@ export default function Profile({ rows, session, theme, setTheme, prefs, setPref
   }
 
   // ---- sync status ----
-  const pending = store.pendingCount() + cardstore.pendingCount();
+  const pending = store.pendingCount() + cardstore.pendingCount() + categoryStore.pendingCount();
   const online = store.isOnline();
   const syncMeta = !online ? 'Offline' : pending ? `${pending} pending` : 'Synced';
 
-  function saveName() {
-    setPrefs({ name: nameDraft.trim() });
+  async function saveName() {
+    const trimmed = nameDraft.trim();
+    setPrefs({ name: trimmed }); // instant local fallback, also covers offline
     setEditingName(false);
+    // Durable, cross-device source of truth. onAuthStateChange (USER_UPDATED)
+    // refreshes `session` app-wide once this resolves.
+    await supabase.auth.updateUser({ data: { full_name: trimmed } });
   }
 
   function exportCsv() {
@@ -93,7 +102,7 @@ export default function Profile({ rows, session, theme, setTheme, prefs, setPref
 
   async function syncNow() {
     setSyncing(true);
-    await Promise.all([store.refresh(), cardstore.refresh()]);
+    await Promise.all([store.refresh(), cardstore.refresh(), categoryStore.refresh()]);
     setSyncing(false);
   }
 
@@ -102,6 +111,7 @@ export default function Profile({ rows, session, theme, setTheme, prefs, setPref
     await supabase.auth.signOut();
     store.clearLocal();
     cardstore.clearLocal();
+    categoryStore.clearLocal();
   }
 
   return (
@@ -119,7 +129,14 @@ export default function Profile({ rows, session, theme, setTheme, prefs, setPref
             onKeyDown={(e) => e.key === 'Enter' && saveName()}
           />
         ) : (
-          <h1 onClick={() => { setNameDraft(prefs.name || ''); setEditingName(true); }}>{name}</h1>
+          <h1
+            onClick={() => {
+              setNameDraft(session?.user?.user_metadata?.full_name || prefs.name || '');
+              setEditingName(true);
+            }}
+          >
+            {name}
+          </h1>
         )}
         <div className="sub">
           {email}
@@ -192,6 +209,14 @@ export default function Profile({ rows, session, theme, setTheme, prefs, setPref
         </div>
       </div>
 
+      <div className="section-title">Categories</div>
+      <div className="plist">
+        <button className="prow" onClick={onManageCategories}>
+          <span className="grow">Manage categories</span>
+          <span className="chev">›</span>
+        </button>
+      </div>
+
       <div className="section-title">Data</div>
       <div className="plist">
         <button className="prow" onClick={() => setShowAll(true)}>
@@ -220,7 +245,7 @@ export default function Profile({ rows, session, theme, setTheme, prefs, setPref
         </button>
       </div>
 
-      <div className="version">Expenses v{APP_VERSION}</div>
+      <div className="version">Kharcha v{APP_VERSION}</div>
     </>
   );
 }

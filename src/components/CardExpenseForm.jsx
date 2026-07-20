@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as cardstore from '../lib/cardstore.js';
 import { round2 } from '../lib/money.js';
 import { todayLocal } from '../lib/dates.js';
+import { normalizeMerchant } from '../lib/merchant.js';
 
 export default function CardExpenseForm({ initial, onClose }) {
   const editing = typeof initial === 'object' && initial !== null;
@@ -23,7 +24,7 @@ export default function CardExpenseForm({ initial, onClose }) {
       id: editing ? initial.id : crypto.randomUUID(),
       card_id: cardId,
       tx_date: date,
-      merchant: merchant.trim(),
+      merchant: normalizeMerchant(merchant),
       note: note.trim(),
       amount: round2(amt),
       created_at: editing ? initial.created_at : new Date().toISOString(),

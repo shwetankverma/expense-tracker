@@ -1,6 +1,6 @@
 {
-  "name": "Expense Tracker",
-  "short_name": "Expenses",
+  "name": "Kharcha",
+  "short_name": "Kharcha",
   "start_url": "/expense-tracker/",
   "scope": "/expense-tracker/",
   "display": "standalone",

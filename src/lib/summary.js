@@ -1,5 +1,6 @@
 import { formatINR } from './money.js';
 import { fmtShort, parseISO, dayCount, addDays } from './dates.js';
+import { UNCATEGORIZED, UNKNOWN_MERCHANT } from './merchant.js';
 
 const inRange = (r, a, b) => r.tx_date >= a && r.tx_date <= b;
 
@@ -10,7 +11,17 @@ function sumBy(rows, type) {
 function byCategory(rows, type) {
   const map = {};
   rows.filter((r) => r.type === type).forEach((r) => {
-    map[r.category] = (map[r.category] || 0) + Number(r.amount);
+    const key = r.category && r.category.trim() ? r.category : UNCATEGORIZED;
+    map[key] = (map[key] || 0) + Number(r.amount);
+  });
+  return Object.entries(map).sort((a, b) => b[1] - a[1]);
+}
+
+function byMerchant(rows, type) {
+  const map = {};
+  rows.filter((r) => r.type === type).forEach((r) => {
+    const key = r.merchant && r.merchant.trim() ? r.merchant : UNKNOWN_MERCHANT;
+    map[key] = (map[key] || 0) + Number(r.amount);
   });
   return Object.entries(map).sort((a, b) => b[1] - a[1]);
 }
@@ -83,7 +94,17 @@ export function buildReport(allRows, startIso, endIso) {
   if (largest.length === 0) lines.push('(none)');
   largest.forEach((r, i) => {
     const note = r.note ? `  "${r.note}"` : '';
-    lines.push(`${String(i + 1).padStart(2)}. ${formatINR(Number(r.amount)).padEnd(11)}${r.category.padEnd(15)}${fmtShort(r.tx_date).padEnd(8)}${note}`);
+    const cat = r.category && r.category.trim() ? r.category : UNCATEGORIZED;
+    lines.push(`${String(i + 1).padStart(2)}. ${formatINR(Number(r.amount)).padEnd(11)}${cat.padEnd(15)}${fmtShort(r.tx_date).padEnd(8)}${note}`);
+  });
+  lines.push('');
+
+  lines.push('TOP MERCHANTS');
+  const merchants = byMerchant(rows, 'expense').slice(0, 10);
+  if (merchants.length === 0) lines.push('(no expenses)');
+  merchants.forEach(([name, amt]) => {
+    const pct = expense > 0 ? ((amt / expense) * 100).toFixed(1) : '0.0';
+    lines.push(`${name.padEnd(15)}${formatINR(amt).padEnd(12)}${pct}%`);
   });
   lines.push('');
 
